@@ -1,0 +1,9 @@
+numpy>=1.24
+networkx>=3.2
+osmnx>=1.9
+gymnasium>=0.29
+matplotlib>=3.7
+
+[dev]
+pytest>=8.0
+ruff>=0.4

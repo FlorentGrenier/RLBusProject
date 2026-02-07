@@ -1,0 +1,41 @@
+Metadata-Version: 2.4
+Name: bus-graph-rl
+Version: 0.1.0
+Summary: RL bus exploring a city graph (OSM) or grid graphs
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.24
+Requires-Dist: networkx>=3.2
+Requires-Dist: osmnx>=1.9
+Requires-Dist: gymnasium>=0.29
+Requires-Dist: matplotlib>=3.7
+Provides-Extra: dev
+Requires-Dist: pytest>=8.0; extra == "dev"
+Requires-Dist: ruff>=0.4; extra == "dev"
+
+# bus-graph-rl
+
+Projet RL (apprentissage par renforcement) : "bus" qui explore un graphe (réseau routier / grille).
+
+## Démarrage rapide
+
+### 1) Installer
+- Avec `uv` (recommandé) :
+```bash
+uv sync
+```
+
+- Ou avec pip :
+```bash
+pip install -e .
+```
+
+### 2) Construire / charger un graphe OSM (exemple)
+Le notebook original est dans `notebooks/BusProjectV2.ipynb`.
+
+### 3) Lancer un entraînement simple (Q-learning démo)
+```bash
+python -m bus_graph_rl.cli.train_qlearning --episodes 50 --area "Toulouse"
+```
+
+> Note : c'est une base "propre" pour refactor progressivement. Certains éléments (env grille) sont encore en TODO.
