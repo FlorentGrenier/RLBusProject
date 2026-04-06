@@ -1,101 +1,88 @@
 # bus-graph-rl
 
-Projet d’apprentissage par renforcement (RL) : un **bus** qui explore un **graphe urbain** (réseau routier) , avec une première implémentation basée sur OSM.
+Prototype de reinforcement learning ou un bus evolue sur un graphe urbain.
 
-## Démarrage rapide
+Le projet contient aujourd'hui :
+- un environnement OSM jouable sans notebook
+- un agent Q-learning tabulaire pour une premiere boucle d'apprentissage
+- une CLI simple pour lancer un entrainement
 
-### Installation & exécution (avec `uv`)
+Le projet ne contient pas encore :
+- une modelisation realiste du trafic ou des passagers
+- une pipeline d'experiences complete
+- une version finalisee de l'environnement grille
 
-Ce projet utilise **uv** pour gérer l’environnement Python et les dépendances.
+## Installation
 
-### Prérequis
-
-* Python ≥ 3.10
-* `uv` installé
+Prerequis :
+- Python 3.10 ou plus
+- `uv`
 
 ```bash
 pip install uv
-```
-
-### Initialiser l’environnement
-
-À la racine du repo :
-
-```bash
 uv sync
-```
-
-Cette commande :
-
-* crée automatiquement le virtualenv (`.venv/`)
-* installe toutes les dépendances définies dans `pyproject.toml`
-* utilise `uv.lock` si le fichier esr présent (reproductibilité)
-
-### Installer le projet en mode editable
-
-Indispensable pour que les imports fonctionnent correctement :
-
-```bash
 uv pip install -e .
 ```
 
-### Lancer un entraînement (sans notebook)
+## Lancer un entrainement
 
 ```bash
-uv run python -m bus_graph_rl.cli.train_qlearning \
-  --episodes 50 \
-  --area Toulouse
+uv run python -m bus_graph_rl.cli.train_qlearning --episodes 50 --area Toulouse
 ```
 
-### Activer manuellement le virtualenv (optionnel)
+## Environnement OSM
 
-Utilisation `uv run` (recommandé) ou activer le venv :
+L'environnement `OSMBusEnv` charge un graphe OSM via `osmnx`, marque des arrets de bus aleatoires, puis genere une mission simple :
+- aller au point de pickup
+- effectuer le pickup
+- rejoindre le point de dropoff
+- effectuer le dropoff
 
-Linux / macOS :
+L'espace d'actions fonctionne comme suit :
+- action `0` : tenter de servir l'arret courant
+- actions `1..N` : se deplacer vers un voisin sortant du noeud courant
+
+L'observation expose :
+- `passenger_on`
+- `passenger_off`
+- `current_node_is_stop`
+- `distance_to_target`
+- `action_mask`
+
+## Structure
+
+- `src/bus_graph_rl/envs/` : environnements RL
+- `src/bus_graph_rl/agents/` : agents d'apprentissage
+- `src/bus_graph_rl/graph/` : chargement des graphes
+- `src/bus_graph_rl/cli/` : point d'entree entrainement
+- `tests/` : smoke tests et tests unitaires de base
+- `notebooks/` : travail exploratoire initial
+
+## Etat du repo
+
+Ce repo est une base de travail serieuse, mais encore experimentale.
+
+Stable aujourd'hui :
+- packaging Python simple
+- chargement de graphe OSM
+- boucle d'entrainement minimale
+- tests unitaires de base hors reseau
+
+Encore en chantier :
+- meilleur shaping de reward
+- observations plus riches pour apprendre sur graphe
+- comparaison avec des methodes plus solides que le Q-learning tabulaire
+- `GridBusEnv`, encore incomplet
+
+## Tests
 
 ```bash
-source .venv/bin/activate
+uv run pytest
 ```
 
-Windows (PowerShell) :
+## Prochaines evolutions utiles
 
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-### Utilisation avec Jupyter Notebook
-
-Pour utiliser cette env dans Jupyter :
-
-```bash
-uv pip install ipykernel
-python -m ipykernel install --user --name bus-graph-rl
-```
-
-Puis sélectionner le kernel **bus-graph-rl** dans Jupyter.
-
-### Vérification rapide
-
-```bash
-uv run python - << 'EOF'
-from bus_graph_rl.envs.osm_bus_env import OSMBusEnv
-print("Environment OK")
-EOF
-```
-
-## Structure du projet
-
-* `src/bus_graph_rl/` : code principal (envs, agents, training)
-* `notebooks/` : notebooks exploratoires (avec les notebooks originaux)
-* TODO `configs/` : configurations YAML (env, agent, training)
-* TODO `runs/` : logs et checkpoints
-* TODO `data/` : données brutes et pré‑traitées
-
-
-## Notes importantes
-
-Ce repo est volontairement **évolutif** :
-
-* Q-learning tabulaire pour démarrer
-* transition possible vers PPO / GNN (Avec PyTorch Geometric)
-* reward shaping et observation space encore très expérimentaux
+- ajouter un rendu ou des traces de trajectoire pour debugguer les episodes
+- persister des metriques d'entrainement
+- introduire une vraie selection d'actions basee sur la structure locale du graphe
+- preparer une transition vers un agent DQN, PPO, ou un modele de graphe

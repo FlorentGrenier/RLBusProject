@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Any, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
+
 
 @dataclass
 class QLearningConfig:
@@ -12,62 +13,83 @@ class QLearningConfig:
     epsilon: float = 1.0
     epsilon_decay: float = 0.99
     min_epsilon: float = 0.01
-    max_distance: int = 1000  # discretisation (héritée du notebook)
+    max_distance: int = 1000
+
 
 class QLearningAgent:
-    """Agent Q-learning (table) basé sur l'état 'distance_to_stop'.
+    """Tabular Q-learning agent with a compact discrete state."""
 
-    Limites connues (héritées du notebook):
-    - état très compressé (une distance)
-    - le max_distance est arbitraire
-    """
-
-    def __init__(self, env, config: QLearningConfig = QLearningConfig()):
+    def __init__(self, env, config: QLearningConfig | None = None):
         self.env = env
-        self.cfg = config
-        num_actions = env.action_space.n
-        self.q_table = np.zeros((config.max_distance + 1, num_actions), dtype=np.float32)
+        self.cfg = config or QLearningConfig()
+        self.num_actions = env.action_space.n
+        self.q_table: Dict[Tuple[int, int, int, int], np.ndarray] = {}
 
-    def _state_to_index(self, state: Dict[str, Any]) -> int:
-        d = float(state["distance_to_stop"])
-        if not np.isfinite(d):
-            return self.cfg.max_distance
-        return int(np.clip(int(d), 0, self.cfg.max_distance))
+    def _state_to_key(self, state: Dict[str, Any]) -> Tuple[int, int, int, int]:
+        distance = float(state["distance_to_target"])
+        if not np.isfinite(distance):
+            distance_idx = self.cfg.max_distance
+        else:
+            distance_idx = int(np.clip(int(distance), 0, self.cfg.max_distance))
+
+        return (
+            int(state["passenger_on"]),
+            int(state["passenger_off"]),
+            int(state.get("current_node_is_stop", 0)),
+            distance_idx,
+        )
+
+    def _q_values(self, state: Dict[str, Any]) -> np.ndarray:
+        key = self._state_to_key(state)
+        if key not in self.q_table:
+            self.q_table[key] = np.zeros(self.num_actions, dtype=np.float32)
+        return self.q_table[key]
+
+    def _valid_actions(self, state: Dict[str, Any]) -> List[int]:
+        action_mask = state.get("action_mask")
+        if action_mask is None:
+            return list(range(self.num_actions))
+
+        valid_actions = np.flatnonzero(np.asarray(action_mask)).tolist()
+        return valid_actions or [0]
 
     def act(self, state: Dict[str, Any]) -> int:
+        valid_actions = self._valid_actions(state)
         if np.random.rand() < self.cfg.epsilon:
-            return int(self.env.action_space.sample())
-        idx = self._state_to_index(state)
-        return int(np.argmax(self.q_table[idx]))
+            return int(np.random.choice(valid_actions))
+
+        q_values = self._q_values(state).copy()
+        invalid_actions = [idx for idx in range(self.num_actions) if idx not in valid_actions]
+        if invalid_actions:
+            q_values[invalid_actions] = -np.inf
+        return int(np.argmax(q_values))
 
     def train(self, num_episodes: int) -> List[float]:
         rewards: List[float] = []
 
-        for ep in range(num_episodes):
+        for _episode in range(num_episodes):
             out = self.env.reset()
-            state = out[0] if isinstance(out, tuple) else out  # gymnasium vs gym
+            state = out[0] if isinstance(out, tuple) else out
             total = 0.0
-
             done = False
+
             while not done:
                 action = self.act(state)
-
                 step_out = self.env.step(action)
-                if len(step_out) == 5:  # gymnasium
+                if len(step_out) == 5:
                     next_state, reward, terminated, truncated, _info = step_out
                     done = bool(terminated or truncated)
-                else:  # gym
+                else:
                     next_state, reward, done, _info = step_out
 
                 total += float(reward)
 
-                s = self._state_to_index(state)
-                ns = self._state_to_index(next_state)
-
-                q_value = self.q_table[s][action]
-                next_q_value = float(np.max(self.q_table[ns]))
-                td_error = float(reward) + self.cfg.discount_factor * next_q_value - float(q_value)
-                self.q_table[s][action] += self.cfg.learning_rate * td_error
+                state_q = self._q_values(state)
+                next_state_q = self._q_values(next_state)
+                next_valid_actions = self._valid_actions(next_state)
+                next_q_value = float(np.max(next_state_q[next_valid_actions])) if next_valid_actions else 0.0
+                td_error = float(reward) + self.cfg.discount_factor * next_q_value - float(state_q[action])
+                state_q[action] += self.cfg.learning_rate * td_error
 
                 state = next_state
 
